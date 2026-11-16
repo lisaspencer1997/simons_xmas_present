@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Who Is The Killer?</title>
+<style>
+  :root {
+    --bg: #10131b;
+    --panel: #1b2130;
+    --text: #f4f6fb;
+    --muted: #aab3c5;
+    --accent: #7c9cff;
+    --red: #ff4d5e;
+    --green: #55e6a5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    padding: 24px; color: var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    background: radial-gradient(ellipse at top, #26314b 0%, var(--bg) 62%);
+  }
+  .panel {
+    width: min(100%, 680px); padding: clamp(26px, 6vw, 54px);
+    text-align: center; background: rgba(27,33,48,.94);
+    border: 1px solid #39445c; border-radius: 22px;
+    box-shadow: 0 24px 80px #0008;
+  }
+  .eyebrow { color: var(--accent); letter-spacing: .22em; text-transform: uppercase; font-size: .78rem; font-weight: 800; }
+  h1 { margin: 14px 0 12px; font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.05; }
+  .sub { color: var(--muted); margin: 0 auto 28px; max-width: 42ch; }
+  form { display: flex; gap: 10px; margin-top: 26px; }
+  input {
+    min-width: 0; flex: 1; padding: 16px 18px; border-radius: 12px;
+    border: 1px solid #56627b; background: #101522; color: white;
+    font: inherit; font-size: 1rem; outline: none;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #7c9cff30; }
+  input:disabled { opacity: .45; cursor: not-allowed; }
+  button {
+    border: 0; border-radius: 12px; padding: 0 23px; min-height: 54px;
+    background: var(--accent); color: #101522; font: inherit; font-weight: 850;
+    cursor: pointer; transition: transform .15s, opacity .15s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-2px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .status { min-height: 28px; margin-top: 18px; color: var(--muted); }
+  .countdown {
+    font-size: clamp(6rem, 25vw, 11rem); font-weight: 950; line-height: 1;
+    letter-spacing: -.08em; margin: 24px 0; color: white;
+    text-shadow: 0 0 35px #7c9cff80; animation: pop .65s ease both;
+  }
+  @keyframes pop { from { transform: scale(.55); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .wrong-mark { color: var(--red); font-size: clamp(5rem, 22vw, 9rem); line-height: 1; font-weight: 1000; text-shadow: 0 0 35px #ff4d5e66; }
+  .wrong-title { color: var(--red); font-size: clamp(2.2rem, 8vw, 4rem); font-weight: 950; margin: 8px 0; }
+  .success-title { color: var(--green); font-size: clamp(2rem, 7vw, 3.4rem); font-weight: 950; line-height: 1.1; }
+  .code-label { margin: 28px 0 10px; color: var(--muted); letter-spacing: .16em; text-transform: uppercase; font-size: .8rem; }
+  .code {
+    display: inline-block; padding: 14px 28px; border: 2px solid #55e6a5;
+    border-radius: 14px; background: #071a18; color: #8dffca;
+    font: 900 clamp(3.5rem, 15vw, 6rem)/1.1 "Courier New", monospace;
+    letter-spacing: .22em; text-shadow: 0 0 12px #55e6a5, 0 0 30px #55e6a577;
+    box-shadow: inset 0 0 22px #55e6a51a, 0 0 28px #55e6a522;
+    padding-left: .42em;
+  }
+  .lock-icon { font-size: 1.3rem; margin-right: 7px; }
+  .lock-panel { border: 1px solid #76505a; background: #291e29; padding: 18px; border-radius: 14px; margin-top: 24px; }
+  .timer { color: #ffd18a; font: 800 clamp(1.8rem, 7vw, 2.8rem)/1.2 "Courier New", monospace; letter-spacing: .04em; margin: 8px 0; }
+  .small { color: var(--muted); font-size: .9rem; }
+  .hidden { display: none !important; }
+  .shake { animation: shake .4s ease; }
+  @keyframes shake { 0%,100% {transform:translateX(0)} 20%,60% {transform:translateX(-8px)} 40%,80% {transform:translateX(8px)} }
+  @media (max-width: 520px) {
+    form { flex-direction: column; }
+    button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main class="panel" id="app">
+  <div class="eyebrow">The Mystery</div>
+  <section id="entryScreen">
+    <h1>Enter the killer's name</h1>
+    <p class="sub">Think carefully. You only get another attempt when the timer allows it.</p>
+    <form id="answerForm">
+      <input id="answer" type="text" placeholder="Type your answer..." autocomplete="off" aria-label="Killer's name">
+      <button id="submitButton" type="submit">SUBMIT</button>
+    </form>
+    <div class="status" id="entryStatus" aria-live="polite"></div>
+    <div class="lock-panel hidden" id="lockPanel">
+      <div><span class="lock-icon">🔒</span><strong>YOU ARE LOCKED OUT</strong></div>
+      <p class="small">Your next attempt will be available in:</p>
+      <div class="timer" id="lockTimer">00:00:00</div>
+      <p class="small">The answer box will unlock automatically when the timer reaches zero.</p>
+    </div>
+  </section>
+
+  <section id="countdownScreen" class="hidden" aria-live="assertive">
+    <div class="eyebrow">Checking your answer</div>
+    <div class="countdown" id="countdownNumber">3</div>
+    <p class="sub">The truth is about to be revealed...</p>
+  </section>
+
+  <section id="wrongScreen" class="hidden" aria-live="assertive">
+    <div class="wrong-mark">✕</div>
+    <div class="wrong-title">WRONG!</div>
+    <p class="sub">That is not the killer. Try again when your time is up.</p>
+  </section>
+
+  <section id="successScreen" class="hidden" aria-live="polite">
+    <div class="eyebrow">Case closed</div>
+    <div class="success-title">CONGRATS!<br>YOU FOUND THE KILLER</div>
+    <p class="sub">The code to unlock your present is:</p>
+    <div class="code-label">Your secret code</div>
+    <div class="code" aria-label="Code 1234">1234</div>
+    <p class="sub" style="margin-top:24px">Excellent detective work.</p>
+  </section>
+</main>
+
+<script>
+/* ===================== CUSTOM SETTINGS =====================
+   Change these if you want to customise the game.
+*/
+const CORRECT_ANSWER = "Joe Bloggs"; // Answer is checked without case sensitivity.
+const PRESENT_CODE = "1234";         // Change the displayed code here.
+const LOCK_HOURS = [1, 2, 3, 4, 5]; // Random lockout length after a wrong answer.
+const STORAGE_KEY = "killerGameUnlockAt_v1";
+
+/* OPTIONAL AUDIO FILES:
+   Leave as null to use the built-in generated beeps/sounds.
+   To use your own files, put them in the same folder as this HTML file
+   and change null to e.g. "beep.mp3", "wrong.mp3", "success.mp3".
+*/
+const AUDIO_FILES = {
+  beep: null,
+  wrong: null,
+  success: null
+};
+/* ========================================================== */
+
+const screens = ["entryScreen", "countdownScreen", "wrongScreen", "successScreen"];
+const answerInput = document.getElementById("answer");
+const submitButton = document.getElementById("submitButton");
+const lockPanel = document.getElementById("lockPanel");
+const lockTimer = document.getElementById("lockTimer");
+const entryStatus = document.getElementById("entryStatus");
+let audioContext = null;
+
+function showScreen(id) {
+  screens.forEach(screen => document.getElementById(screen).classList.toggle("hidden", screen !== id));
+}
+function getAudioContext() {
+  if (!audioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) audioContext = new AudioCtx();
+  }
+  if (audioContext && audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
+function tone(frequency, duration = 0.16, type = "sine", volume = 0.12, delay = 0) {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const start = ctx.currentTime + delay;
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(ctx.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+function playSound(kind) {
+  const file = AUDIO_FILES[kind];
+  if (file) {
+    const audio = new Audio(file);
+    audio.play().catch(() => {});
+    return;
+  }
+  if (kind === "beep") tone(720, 0.18, "sine", 0.13);
+  if (kind === "wrong") {
+    tone(190, 0.42, "sawtooth", 0.12);
+    tone(125, 0.5, "sawtooth", 0.10, 0.22);
+  }
+  if (kind === "success") {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.42, "triangle", 0.11, i * 0.16));
+  }
+}
+function setLockout(hours) {
+  const unlockAt = Date.now() + hours * 60 * 60 * 1000;
+  localStorage.setItem(STORAGE_KEY, String(unlockAt));
+  updateLockUI();
+}
+function getUnlockAt() {
+  const value = Number(localStorage.getItem(STORAGE_KEY));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+function formatRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map(n => String(n).padStart(2, "0")).join(":");
+}
+function updateLockUI() {
+  const unlockAt = getUnlockAt();
+  const remaining = unlockAt ? unlockAt - Date.now() : 0;
+  const locked = remaining > 0;
+  answerInput.disabled = locked;
+  submitButton.disabled = locked;
+  lockPanel.classList.toggle("hidden", !locked);
+  if (locked) {
+    lockTimer.textContent = formatRemaining(remaining);
+    entryStatus.textContent = "Your next attempt is currently unavailable.";
+  } else {
+    if (unlockAt) localStorage.removeItem(STORAGE_KEY);
+    entryStatus.textContent = "The answer box is unlocked. You may try again.";
+  }
+}
+function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+document.getElementById("answerForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (getUnlockAt() && getUnlockAt() > Date.now()) return;
+  const entered = answerInput.value.trim();
+  if (!entered) {
+    entryStatus.textContent = "Please enter a name first.";
+    answerInput.focus();
+    return;
+  }
+
+  // Prevent double submissions while the countdown is running.
+  answerInput.disabled = true;
+  submitButton.disabled = true;
+  showScreen("countdownScreen");
+
+  for (let number = 3; number >= 1; number--) {
+    const numberElement = document.getElementById("countdownNumber");
+    numberElement.textContent = number;
+    numberElement.style.animation = "none";
+    void numberElement.offsetWidth;
+    numberElement.style.animation = "";
+    playSound("beep");
+    await wait(1000);
+  }
+
+  if (entered.toLocaleLowerCase() === CORRECT_ANSWER.toLocaleLowerCase()) {
+    showScreen("successScreen");
+    document.querySelector("#successScreen .code").textContent = PRESENT_CODE;
+    playSound("success");
+    // Keep the solved screen displayed; there is no further entry.
+  } else {
+    showScreen("wrongScreen");
+    playSound("wrong");
+    const hours = LOCK_HOURS[Math.floor(Math.random() * LOCK_HOURS.length)];
+    await wait(5000);
+    answerInput.value = "";
+    showScreen("entryScreen");
+    setLockout(hours);
+    entryStatus.textContent = `Incorrect answer. The box is locked for ${hours} hour${hours === 1 ? "" : "s"}.`;
+  }
+});
+
+// Restore an existing lockout after refresh/reopening, and keep its clock ticking.
+updateLockUI();
+setInterval(updateLockUI, 1000);
+</script>
+</body>
+</html>
